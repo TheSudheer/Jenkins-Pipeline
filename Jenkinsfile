@@ -23,6 +23,19 @@ pipeline {
                     }
                 }
             }
+
+        stage ("Install Dependencies") {
+            steps {
+                echo "Installing Dependencies...."
+                script {
+                    if (fileExists('requirements.txt')) {
+                        echo "requirements.txt found. Installing dependencies..."
+                        sh "pip3 install -r requirements.txt"
+                    } else {
+                        echo "requirements.txt not found. Skipping dependency installation."
+                    }
+                }
+            }   
         }
     }
 }
