@@ -23,7 +23,7 @@ pipeline {
                     }
                 }
             }
-
+        } // Close the Installation Checkup stage
         stage ("Install Dependencies") {
             steps {
                 echo "Installing Dependencies...."
