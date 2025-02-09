@@ -13,10 +13,9 @@ pipeline {
                         sh "sudo apt-get update && sudo apt-get install -y python3 python3-pip"
                     } else {
                         echo "python3 and pip3 are already installed."
-                        }
                     }
                 }
-        }
+            }
         } // Close the Installation Checkup stage
         stage ("Install Dependencies") {
             steps {
@@ -30,7 +29,7 @@ pipeline {
                     }
                 }
             }   
-         }
+        }
         stage ("Run Tests") {
             steps {
                 echo "Running Tests..."
@@ -44,6 +43,5 @@ pipeline {
                 }
             }
         }
-
-    }
-}
+    } // Close the stages block
+} // Close the pipeline block
