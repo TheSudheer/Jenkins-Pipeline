@@ -1,47 +1,72 @@
 pipeline {
-    agent any 
-    stages {
-        stage ("Installation Checkup") {
-            steps {
-                echo "Checking if python3 & pip3 are installed or not ...."
-                script {
-                    def installations = sh(script: "command -v python3 && command -v pip3", returnStatus: true) == 0
-                    def pythonInstalled = installations
-                    def pipInstalled = installations
-                    if (!installations) {
-                        echo "python3 or pip3 is not installed. Installing missing packages..."
-                        sh "sudo apt-get update && sudo apt-get install -y python3 python3-pip"
-                    } else {
-                        echo "python3 and pip3 are already installed."
+    agent any
+    
+    environment {
+        SERVER_IP = credentials('server-ip')
+    }
+    
+    options {
+        timeout(time: 1, unit: 'HOURS')
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        timestamps()
+        ansiColor('xterm')
+        retry(3)
+    }
+    
+    stages {   //Nested stages for learning not recommended in Production
+        stage('Build and Test') {
+            stages {
+                stage('Install Dependencies') {
+                    steps {
+                        sh "pip install -r requirements.txt"
                     }
                 }
-            }
-        } // Close the Installation Checkup stage
-        stage ("Install Dependencies") {
-            steps {
-                echo "Installing Dependencies...."
-                script {
-                    if (fileExists('requirements.txt')) {
-                        echo "requirements.txt found. Installing dependencies..."
-                        sh "pip3 install -r requirements.txt"
-                    } else {
-                        echo "requirements.txt not found. Skipping dependency installation."
+                
+                stage('Test Application') {
+                    steps {
+                        sh "pytest"
                     }
                 }
-            }   
-        }
-        stage ("Run Tests") {
-            steps {
-                echo "Running Tests..."
-                script {
-                    if (fileExists('test_app.py')) {
-                        echo "test_app.py found. Running tests..."
-                        sh "python3 test_app.py"
-                    } else {
-                        echo "test_app.py not found. Skipping tests."
+                
+                stage('Package Code') {
+                    steps {
+                        sh "zip -r myapp.zip ./* -x '*.git*'"
+                        sh "ls -lart"
                     }
                 }
             }
         }
-    } // Close the stages block
-} // Close the pipeline block
+        
+        stage('Deploy to Ubuntu-Server') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'ssh-key', keyFileVariable: 'SSH_KEY', usernameVariable: 'USERNAME')]) {
+                    sh '''
+                        scp -i $SSH_KEY -o StrictHostKeyChecking=no myapp.zip ${USERNAME}@${SERVER_IP}:/home/ubuntu/
+                        ssh -i $SSH_KEY -o StrictHostKeyChecking=no ${USERNAME}@${SERVER_IP} << EOF
+                            unzip -o /home/ubuntu/myapp.zip -d /home/ubuntu/myapp
+                            source app/venv/bin/activate
+                            pip install -r requirements.txt
+                            sudo systemctl restart myapp.service
+                        EOF
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        failure {
+            emailext (
+                subject: "Pipeline Failed: ${currentBuild.fullDisplayName}",
+                body: "Pipeline failed at stage: ${currentBuild.description}",
+                to: 'team@example.com'
+            )
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        always {
+            echo 'Pipeline execution completed'
+        }
+    }
+}
